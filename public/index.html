@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thesis-GATE 論文審查系統 (RBAC 完整版)</title>
+    <style>
+        :root {
+            --paper: #f5f7fa;
+            --surface: #ffffff;
+            --ink: #16253b;
+            --muted: #5d6b82;
+            --line: #d5dbe5;
+            --accent: #0e6a8a;
+            --accent-dark: #0a5169;
+            --danger: #b3412f;
+            --ledger-bg: #121c2c;
+            --ledger-ink: #d7e2f0;
+            --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif;
+            --mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--font);
+            line-height: 1.6;
+        }
+
+        /* 頂部列：標題與當前操作身分 */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--ink);
+            color: #fff;
+            padding: 12px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px 24px;
+            flex-wrap: wrap;
+        }
+        .topbar .title { margin-right: auto; }
+        .topbar h2 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: .02em; }
+        .topbar p { margin: 0; color: #a9b8cf; font-size: .85rem; }
+        .identity { display: flex; align-items: center; gap: 10px; }
+        .identity label { font-size: .88rem; color: #cbd6e6; white-space: nowrap; }
+        .identity select {
+            width: auto;
+            min-width: 170px;
+            background: #22344f;
+            color: #fff;
+            border: 1px solid #3b5173;
+        }
+
+        /* 並排版面 */
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+            gap: 28px;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 28px 24px 48px;
+            align-items: start;
+        }
+        .col-flow { display: flex; flex-direction: column; }
+        .col-side {
+            position: sticky;
+            top: 76px;
+            max-height: calc(100vh - 92px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-right: 2px;
+        }
+        .group-title { margin: 0 0 14px; font-size: 1rem; color: var(--muted); font-weight: 600; }
+
+        /* 卡片 */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 18px 20px 16px;
+            position: relative;
+        }
+        .card h3 {
+            margin: 0 0 14px;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card h3 .step {
+            flex: none;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-size: .85rem;
+            display: grid;
+            place-items: center;
+        }
+        .card h3 .verb {
+            margin-left: auto;
+            font: 600 .75rem var(--mono);
+            color: var(--muted);
+            border: 1px solid var(--line);
+            border-radius: 3px;
+            padding: 1px 7px;
+        }
+        .col-flow .card + .card { margin-top: 26px; }
+        .col-flow .card + .card::before {
+            content: "";
+            position: absolute;
+            left: 32px;
+            top: -26px;
+            height: 26px;
+            border-left: 2px solid var(--line);
+        }
+
+        /* 管理員發卡中心：特權操作，用紅色左邊線與其他卡片區隔 */
+        .auth-card { border-left: 4px solid var(--danger); }
+        .auth-card h3 .verb { color: var(--danger); border-color: var(--danger); }
+
+        /* 表單 */
+        .field { margin-bottom: 12px; }
+        .field label { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 3px; }
+        .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
+        input, select {
+            display: block;
+            width: 100%;
+            padding: 9px 11px;
+            font: inherit;
+            font-size: .95rem;
+            color: var(--ink);
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+        }
+        input::placeholder { color: #98a3b5; }
+        input[type="file"] { padding: 7px 8px; background: var(--paper); }
+        input:focus, select:focus, button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+            border-color: var(--accent);
+        }
+
+        /* 按鈕 */
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+        button {
+            padding: 9px 16px;
+            font: inherit;
+            font-size: .92rem;
+            font-weight: 600;
+            background: var(--accent);
+            color: #fff;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        button:hover { background: var(--accent-dark); }
+        button.secondary { background: #fff; color: var(--accent); }
+        button.secondary:hover { background: #eaf4f8; }
+        button.danger { background: var(--danger); border-color: var(--danger); }
+        button.danger:hover { background: #8f3324; }
+
+        /* 回應區 */
+        .ledger { background: var(--ledger-bg); border-radius: 6px; overflow: hidden; flex: none; }
+        .ledger-head { padding: 10px 16px; color: #9fb0c8; font-size: .85rem; border-bottom: 1px solid #25334a; }
+        pre {
+            margin: 0;
+            padding: 16px;
+            min-height: 200px;
+            max-height: 45vh;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font: .88rem/1.55 var(--mono);
+            background: transparent;
+        }
+        .status-success { color: #6ee7a8; }
+        .status-error { color: #ff8f7e; }
+        .status-loading { color: #f2c94c; }
+        .hidden { display: none !important; } /* 強制隱藏的樣式類別 */
+
+        /* 窄螢幕改為上下排列 */
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; padding: 20px 16px 40px; }
+            .col-side { position: static; max-height: none; overflow: visible; order: -1; }
+            .topbar { padding: 12px 20px; position: static; }
+        }
+        @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="title">
+            <h2>Thesis-GATE 論文審查系統</h2>
+            <p>區塊鏈前端介面（身分驗證啟用）</p>
+        </div>
+        <!-- 身分選擇下拉選單 -->
+        <div class="identity">
+            <label for="currentUser">當前操作身分</label>
+            <select id="currentUser" class="form-select">
+                <option value="">載入中...</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="layout">
+        <!-- 左欄：依論文流程由上到下排列 -->
+        <section class="col-flow">
+            <h3 class="group-title">論文流程</h3>
+
+            <div class="card">
+                <h3><span class="step">1</span>創建論文並上傳防偽指紋<span class="verb">POST</span></h3>
+                <div class="row">
+                    <div class="field">
+                        <label for="createId">論文 ID</label>
+                        <input type="text" id="createId" value="T2026-FINAL" placeholder="論文 ID">
+                    </div>
+                    <div class="field">
+                        <label for="createTitle">論文標題</label>
+                        <input type="text" id="createTitle" value="屬性存取控制實作" placeholder="論文標題">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="field">
+                        <label for="createStudent">學生學號</label>
+                        <input type="text" id="createStudent" value="S1110001" placeholder="學生學號">
+                    </div>
+                    <div class="field">
+                        <label for="createAdvisor">指導教授 ID</label>
+                        <input type="text" id="createAdvisor" value="P99001" placeholder="指導教授 ID">
+                    </div>
+                    <div class="field">
+                        <label for="createDirector">主任 ID</label>
+                        <input type="text" id="createDirector" value="D001" placeholder="主任 ID">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="createFile">論文檔案 (.docx / .pdf)</label>
+                    <input type="file" id="createFile" accept=".docx,.pdf">
+                </div>
+                <div class="actions">
+                    <button onclick="createThesisWithFile()">上傳檔案並寫入區塊鏈</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="step">2</span>學生更新進度報告<span class="verb">PUT</span></h3>
+                <div class="row">
+                    <div class="field">
+                        <label for="updateId">論文 ID</label>
+                        <input type="text" id="updateId" value="T2026-FINAL" placeholder="論文 ID">
+                    </div>
+                    <div class="field">
+                        <label for="updateReport">進度報告</label>
+                        <input type="text" id="updateReport" placeholder="輸入進度報告內容">
+                    </div>
+                </div>
+                <div class="actions">
+                    <button onclick="updateWork()">送出進度</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="step">3</span>學生送交 Gate 審查<span class="verb">POST</span></h3>
+                <div class="field">
+                    <label for="submitId">論文 ID</label>
+                    <input type="text" id="submitId" value="T2026-FINAL" placeholder="論文 ID">
+                </div>
+                <div class="actions">
+                    <button onclick="submitToGate()">送交審查</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="step">4</span>委員進行 Gate 審查<span class="verb">POST</span></h3>
+                <div class="row">
+                    <div class="field">
+                        <label for="reviewId">論文 ID</label>
+                        <input type="text" id="reviewId" value="T2026-FINAL" placeholder="論文 ID">
+                    </div>
+                    <div class="field">
+                        <label for="reviewApproved">審查結果</label>
+                        <select id="reviewApproved">
+                            <option value="true">通過 (Approve)</option>
+                            <option value="false">退回 (Reject)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="reviewComments">審查意見</label>
+                    <input type="text" id="reviewComments" value="同意進入下一階段" placeholder="審查意見">
+                </div>
+                <div class="actions">
+                    <button onclick="reviewGate()">送出審查結果</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 右欄：發卡中心（僅 admin）、查詢、系統回應 -->
+        <aside class="col-side">
+            <!-- 網頁版發卡中心 (預設加上 hidden 類別，確保非 admin 絕對看不到) -->
+            <div class="card auth-card hidden" id="adminCard">
+                <h3>管理員發卡中心<span class="verb">POST</span></h3>
+                <div class="row">
+                    <div class="field">
+                        <label for="newUserId">新成員 ID</label>
+                        <input type="text" id="newUserId" placeholder="輸入新成員 ID (例: S1110003)">
+                    </div>
+                    <div class="field">
+                        <label for="newUserRole">角色</label>
+                        <select id="newUserRole">
+                            <option value="student">學生 (student)</option>
+                            <option value="professor">教授 (professor)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="adminPassword">管理員密碼</label>
+                    <input type="password" id="adminPassword" placeholder="請輸入管理員密碼 (adminpw)">
+                </div>
+                <div class="actions">
+                    <button class="danger" onclick="registerNewUser()">確認身分並核發憑證</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>查詢與歷史軌跡<span class="verb">GET</span></h3>
+                <div class="field">
+                    <label for="queryId">論文 ID</label>
+                    <input type="text" id="queryId" value="T2026-FINAL" placeholder="輸入論文 ID">
+                </div>
+                <div class="actions">
+                    <button onclick="queryThesis()">查詢當前狀態</button>
+                    <button class="secondary" onclick="queryHistory()">查詢歷史軌跡</button>
+                </div>
+            </div>
+
+            <div class="ledger">
+                <div class="ledger-head">系統回應狀態</div>
+                <pre id="result" class="status-loading">等待操作...</pre>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const API_BASE = '/api/thesis';
+        const resultBox = document.getElementById('result');
+
+        function showResult(data, type = 'success') {
+            resultBox.className = `status-${type}`;
+            resultBox.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+
+        // 1. 頁面載入時：動態載入身分並設定發卡中心顯隱
+        window.addEventListener('DOMContentLoaded', async () => {
+            const selectElement = document.getElementById('currentUser');
+            
+            try {
+                const response = await fetch('/api/users');
+                if (!response.ok) throw new Error('API 狀態異常');
+                
+                const userIds = await response.json();
+                selectElement.innerHTML = ''; 
+                
+                if (!userIds || userIds.length === 0) {
+                    throw new Error('錢包身分清單為空');
+                }
+
+                userIds.forEach(id => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = id;
+                    selectElement.appendChild(option);
+                });
+
+            } catch (err) {
+                console.warn('動態載入身分失敗，改用預設清單:', err);
+                selectElement.innerHTML = `
+                    <option value="admin">admin</option>
+                    <option value="student1">student1</option>
+                    <option value="S1129915">S1129915</option>
+                    <option value="professor1">professor1</option>
+                    <option value="director1">director1</option>
+                `;
+            }
+
+            // 初始化檢查發卡中心顯隱
+            toggleAdminCard(selectElement.value);
+        });
+
+        // 2. 監聽身分下拉選單的變動
+        document.getElementById('currentUser').addEventListener('change', function() {
+            toggleAdminCard(this.value);
+        });
+
+        // 3. 控制發卡中心顯示與隱藏的切換函式
+        function toggleAdminCard(userId) {
+            const adminCard = document.getElementById('adminCard');
+            if (userId === 'admin') {
+                adminCard.classList.remove('hidden'); // 只有 admin 顯示
+            } else {
+                adminCard.classList.add('hidden');    // 其他身分隱藏
+            }
+        }
+
+        // 4. 核心：攔截所有 API 請求，並把選擇的「使用者 ID」塞入 HTTP 標頭
+        async function apiCall(url, method, payload = null, loadingMsg) {
+            showResult(loadingMsg, 'loading');
+            try {
+                const userId = document.getElementById('currentUser').value;
+                const options = { 
+                    method, 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-User-Id': userId 
+                    } 
+                };
+                if (payload) options.body = JSON.stringify(payload);
+                
+                const res = await fetch(url, options);
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error || '操作失敗');
+                showResult(data, 'success');
+            } catch (err) {
+                showResult(`❌ 錯誤：\n${err.message}`, 'error');
+            }
+        }
+
+        // 5. 檔案上傳與創建論文
+        async function createThesisWithFile() {
+            const id = document.getElementById('createId').value;
+            const fileInput = document.getElementById('createFile');
+            
+            if (!id) return showResult('請輸入欲創建的論文 ID', 'error');
+            if (fileInput.files.length === 0) return showResult('請選擇要上傳的論文檔案', 'error');
+
+            const formData = new FormData();
+            formData.append('id', id);
+            formData.append('title', document.getElementById('createTitle').value);
+            formData.append('studentId', document.getElementById('createStudent').value);
+            formData.append('advisorId', document.getElementById('createAdvisor').value);
+            formData.append('directorId', document.getElementById('createDirector').value);
+            formData.append('thesisFile', fileInput.files[0]);
+
+            showResult(`正在計算檔案 SHA-256 指紋並寫入區塊鏈...`, 'loading');
+
+            try {
+                const userId = document.getElementById('currentUser').value;
+                const res = await fetch('/api/thesis', {
+                    method: 'POST',
+                    headers: {
+                        'X-User-Id': userId
+                    },
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || '創建失敗');
+                showResult(data, 'success');
+            } catch (err) {
+                showResult(`❌ 錯誤：\n${err.message}`, 'error');
+            }
+        }
+
+        // 6. 註冊新使用者 (發卡中心)
+        async function registerNewUser() {
+            const userId = document.getElementById('newUserId').value.trim();
+            const role = document.getElementById('newUserRole').value;
+            const adminPassword = document.getElementById('adminPassword').value;
+
+            if (!userId) return showResult('請輸入欲註冊的成員 ID', 'error');
+            if (!adminPassword) return showResult('為了安全性，進行發卡操作必須輸入管理員密碼', 'error');
+
+            if (!confirm(`⚠️ 系統安全確認\n\n您即將為 ID: [ ${userId} ] 核發 [ ${role} ] 憑證。\n確定要執行此管理員操作嗎？`)) {
+                return;
+            }
+
+            try {
+                const payload = {
+                    enrollmentId: userId,
+                    role: role,
+                    adminPassword: adminPassword
+                };
+                
+                await apiCall('/api/register-user', 'POST', payload, `正在向 CA 驗證管理員身分並註冊 ${userId}...`);
+                
+                const selectMenu = document.getElementById('currentUser');
+                if (![...selectMenu.options].some(opt => opt.value === userId)) {
+                    const opt = document.createElement('option');
+                    opt.value = userId;
+                    opt.textContent = userId;
+                    selectMenu.appendChild(opt);
+                }
+                
+                selectMenu.value = userId;
+                toggleAdminCard(userId);
+                document.getElementById('adminPassword').value = document.getElementById('newUserId').value = '';
+            } catch (err) {
+                // apiCall 已經處理錯誤顯示
+            }
+        }
+
+        function queryThesis() {
+            const id = document.getElementById('queryId').value;
+            if (!id) return showResult('請輸入論文 ID', 'error');
+            apiCall(`${API_BASE}/${id}`, 'GET', null, '查詢當前狀態中...');
+        }
+
+        function queryHistory() {
+            const id = document.getElementById('queryId').value;
+            if (!id) return showResult('請輸入論文 ID', 'error');
+            apiCall(`${API_BASE}/${id}/history`, 'GET', null, '撈取歷史軌跡中...');
+        }
+
+        function updateWork() {
+            const id = document.getElementById('updateId').value;
+            apiCall(`${API_BASE}/${id}/work`, 'PUT', { report: document.getElementById('updateReport').value }, `更新進度中...`);
+        }
+
+        function submitToGate() {
+            const id = document.getElementById('submitId').value;
+            apiCall(`${API_BASE}/${id}/submit`, 'POST', null, `正在將論文 ${id} 送交審查...`);
+        }
+
+        function reviewGate() {
+            const id = document.getElementById('reviewId').value;
+            const payload = {
+                approved: document.getElementById('reviewApproved').value === 'true',
+                comments: document.getElementById('reviewComments').value
+            };
+            apiCall(`${API_BASE}/${id}/review`, 'POST', payload, `送出審查結果中...`);
+        }
+    </script>
+</body>
+</html>

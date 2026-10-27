@@ -1,0 +1,7 @@
+node_modules/
+wallet/
+.DS_Store
+.env
+npm-debug.log*
+*:Zone.Identifier
+*:Zone.Identifier
