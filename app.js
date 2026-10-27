@@ -328,6 +328,43 @@ async function ensureDefaultUsers() {
 }
 
 const PORT = 3000;
+
+// API: 管理員更換審查委員 (ReassignReviewer)
+app.post("/api/thesis/reassign", async (req, res) => {
+    try {
+        const { thesisId, newAdvisorId, newDirectorId, reason } = req.body;
+        const userId = req.headers['x-user-id'] || 'admin';
+        if (!thesisId) {
+            return res.status(400).json({ error: "請提供論文 ID (thesisId)" });
+        }
+        const conn = await getContractByUser(userId);
+        const resultBytes = await conn.contract.submitTransaction(
+            "ReassignReviewer",
+            thesisId,
+            newAdvisorId || "",
+            newDirectorId || "",
+            reason || "管理員後台變更審查委員"
+        );
+        await conn.gateway.close();
+        
+        let parsedData = {};
+        const resultStr = utf8Decoder.decode(resultBytes).trim();
+        try {
+            parsedData = JSON.parse(resultStr);
+        } catch (e) {
+            parsedData = { raw: resultStr };
+        }
+
+        res.json({
+            message: "✅ 審查委員綁定已成功更新並記錄於區塊鏈帳本！",
+            data: parsedData
+        });
+    } catch (error) {
+        console.error("更換委員失敗:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
     await initGrpcClient();
     await ensureDefaultUsers();

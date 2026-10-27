@@ -184,7 +184,7 @@
         .status-success { color: #6ee7a8; }
         .status-error { color: #ff8f7e; }
         .status-loading { color: #f2c94c; }
-        .hidden { display: none !important; } /* 強制隱藏的樣式類別 */
+        .hidden { display: none !important; }
 
         /* 窄螢幕改為上下排列 */
         @media (max-width: 900px) {
@@ -305,28 +305,58 @@
 
         <!-- 右欄：發卡中心（僅 admin）、查詢、系統回應 -->
         <aside class="col-side">
-            <!-- 網頁版發卡中心 (預設加上 hidden 類別，確保非 admin 絕對看不到) -->
+            <!-- 網頁版發卡中心 (加上 id="adminCard" 與 class="hidden"，確保非 admin 絕對看不到) -->
             <div class="card auth-card hidden" id="adminCard">
-                <h3>管理員發卡中心<span class="verb">POST</span></h3>
-                <div class="row">
-                    <div class="field">
-                        <label for="newUserId">新成員 ID</label>
-                        <input type="text" id="newUserId" placeholder="輸入新成員 ID (例: S1110003)">
+                <h3>管理員發卡與特權中心<span class="verb">ADMIN</span></h3>
+                
+                <!-- 發卡小區塊 -->
+                <div style="margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 8px 0; color: #b3412f; font-size: 0.95rem;">🔒 新身分憑證核發</h4>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="newUserId">新成員 ID</label>
+                            <input type="text" id="newUserId" placeholder="例: S1110003">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="newUserRole">角色</label>
+                            <select id="newUserRole">
+                                <option value="student">學生 (student)</option>
+                                <option value="professor">教授 (professor)</option>
+                                <option value="director">系所主任 (director)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="field">
-                        <label for="newUserRole">角色</label>
-                        <select id="newUserRole">
-                            <option value="student">學生 (student)</option>
-                            <option value="professor">教授 (professor)</option>
-                        </select>
+                    <div class="field" style="margin-bottom: 8px;">
+                        <label for="adminPassword">管理員密碼</label>
+                        <input type="password" id="adminPassword" placeholder="adminpw">
                     </div>
+                    <button class="danger" onclick="registerNewUser()" style="width: 100%;">確認身分並核發憑證</button>
                 </div>
-                <div class="field">
-                    <label for="adminPassword">管理員密碼</label>
-                    <input type="password" id="adminPassword" placeholder="請輸入管理員密碼 (adminpw)">
-                </div>
-                <div class="actions">
-                    <button class="danger" onclick="registerNewUser()">確認身分並核發憑證</button>
+
+                <!-- 委員變更小區塊 -->
+                <div style="border-top: 1px dashed rgba(0,0,0,0.15); padding-top: 14px;">
+                    <h4 style="margin: 0 0 8px 0; color: #d97706; font-size: 0.95rem;">🔄 審查委員變更與代理授權</h4>
+                    <div class="field" style="margin-bottom: 8px;">
+                        <label for="reassignThesisId">目標論文 ID</label>
+                        <input type="text" id="reassignThesisId" value="T2026-FINAL" placeholder="論文 ID">
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="reassignAdvisorId">新指導教授 ID</label>
+                            <input type="text" id="reassignAdvisorId" placeholder="留空則不變">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="reassignDirectorId">新主任 ID</label>
+                            <input type="text" id="reassignDirectorId" placeholder="留空則不變">
+                        </div>
+                    </div>
+                    <div class="field" style="margin-bottom: 10px;">
+                        <label for="reassignReason">變更原因 (寫入鏈上軌跡)</label>
+                        <input type="text" id="reassignReason" value="修正主任代號" placeholder="變更原因">
+                    </div>
+                    <button onclick="reassignReviewer()" style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 100%;">
+                        🛡️ 執行鏈上委員變更 (Admin 簽章)
+                    </button>
                 </div>
             </div>
 
@@ -391,7 +421,6 @@
                 `;
             }
 
-            // 初始化檢查發卡中心顯隱
             toggleAdminCard(selectElement.value);
         });
 
@@ -404,13 +433,13 @@
         function toggleAdminCard(userId) {
             const adminCard = document.getElementById('adminCard');
             if (userId === 'admin') {
-                adminCard.classList.remove('hidden'); // 只有 admin 顯示
+                adminCard.classList.remove('hidden');
             } else {
-                adminCard.classList.add('hidden');    // 其他身分隱藏
+                adminCard.classList.add('hidden');
             }
         }
 
-        // 4. 核心：攔截所有 API 請求，並把選擇的「使用者 ID」塞入 HTTP 標頭
+        // 4. 核心 API 呼叫包裝
         async function apiCall(url, method, payload = null, loadingMsg) {
             showResult(loadingMsg, 'loading');
             try {
@@ -425,7 +454,13 @@
                 if (payload) options.body = JSON.stringify(payload);
                 
                 const res = await fetch(url, options);
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error("伺服器回傳格式異常 (非 JSON)：\n" + text);
+                }
                 
                 if (!res.ok) throw new Error(data.error || '操作失敗');
                 showResult(data, 'success');
@@ -434,7 +469,7 @@
             }
         }
 
-        // 5. 檔案上傳與創建論文
+        // 5. 創建論文
         async function createThesisWithFile() {
             const id = document.getElementById('createId').value;
             const fileInput = document.getElementById('createFile');
@@ -456,13 +491,18 @@
                 const userId = document.getElementById('currentUser').value;
                 const res = await fetch('/api/thesis', {
                     method: 'POST',
-                    headers: {
-                        'X-User-Id': userId
-                    },
+                    headers: { 'X-User-Id': userId },
                     body: formData
                 });
                 
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error("伺服器回傳格式異常：\n" + text);
+                }
+
                 if (!res.ok) throw new Error(data.error || '創建失敗');
                 showResult(data, 'success');
             } catch (err) {
@@ -470,27 +510,20 @@
             }
         }
 
-        // 6. 註冊新使用者 (發卡中心)
+        // 6. 註冊新使用者
         async function registerNewUser() {
             const userId = document.getElementById('newUserId').value.trim();
             const role = document.getElementById('newUserRole').value;
             const adminPassword = document.getElementById('adminPassword').value;
 
             if (!userId) return showResult('請輸入欲註冊的成員 ID', 'error');
-            if (!adminPassword) return showResult('為了安全性，進行發卡操作必須輸入管理員密碼', 'error');
+            if (!adminPassword) return showResult('請輸入管理員密碼', 'error');
 
-            if (!confirm(`⚠️ 系統安全確認\n\n您即將為 ID: [ ${userId} ] 核發 [ ${role} ] 憑證。\n確定要執行此管理員操作嗎？`)) {
-                return;
-            }
+            if (!confirm(`⚠️ 系統安全確認\n\n您即將為 ID: [ ${userId} ] 核發 [ ${role} ] 憑證。`)) return;
 
             try {
-                const payload = {
-                    enrollmentId: userId,
-                    role: role,
-                    adminPassword: adminPassword
-                };
-                
-                await apiCall('/api/register-user', 'POST', payload, `正在向 CA 驗證管理員身分並註冊 ${userId}...`);
+                const payload = { enrollmentId: userId, role: role, adminPassword: adminPassword };
+                await apiCall('/api/register-user', 'POST', payload, `正在註冊 ${userId}...`);
                 
                 const selectMenu = document.getElementById('currentUser');
                 if (![...selectMenu.options].some(opt => opt.value === userId)) {
@@ -499,13 +532,10 @@
                     opt.textContent = userId;
                     selectMenu.appendChild(opt);
                 }
-                
                 selectMenu.value = userId;
                 toggleAdminCard(userId);
                 document.getElementById('adminPassword').value = document.getElementById('newUserId').value = '';
-            } catch (err) {
-                // apiCall 已經處理錯誤顯示
-            }
+            } catch (err) {}
         }
 
         function queryThesis() {
@@ -527,7 +557,7 @@
 
         function submitToGate() {
             const id = document.getElementById('submitId').value;
-            apiCall(`${API_BASE}/${id}/submit`, 'POST', null, `正在將論文 ${id} 送交審查...`);
+            apiCall(`${API_BASE}/${id}/submit`, 'POST', null, `送交審查中...`);
         }
 
         function reviewGate() {
@@ -537,6 +567,38 @@
                 comments: document.getElementById('reviewComments').value
             };
             apiCall(`${API_BASE}/${id}/review`, 'POST', payload, `送出審查結果中...`);
+        }
+    
+        // 7. 管理員更換審查委員
+        async function reassignReviewer() {
+            const userId = document.getElementById("currentUser").value;
+            const thesisId = document.getElementById("reassignThesisId").value.trim();
+            const newAdvisorId = document.getElementById("reassignAdvisorId").value.trim();
+            const newDirectorId = document.getElementById("reassignDirectorId").value.trim();
+            const reason = document.getElementById("reassignReason").value.trim();
+
+            if (!thesisId) { alert("請輸入目標論文 ID！"); return; }
+            if (!newAdvisorId && !newDirectorId) { alert("請至少填寫一項新委員 ID！"); return; }
+
+            try {
+                showResult("⏳ 正在執行鏈上委員變更...", "loading");
+                const res = await fetch("/api/thesis/reassign", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+                    body: JSON.stringify({ thesisId, newAdvisorId, newDirectorId, reason })
+                });
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error("伺服器回傳格式異常 (非 JSON)：\n" + text);
+                }
+                if (!res.ok) throw new Error(data.error || "變更失敗");
+                showResult(data, "success");
+            } catch (err) {
+                showResult("❌ 錯誤：\n" + err.message, "error");
+            }
         }
     </script>
 </body>
