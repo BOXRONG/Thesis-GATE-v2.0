@@ -1,6 +1,6 @@
-# 🎓 Thesis-GATE v2.0：基於 Hyperledger Fabric 之區塊鏈學術論文審查與防偽系統
+# 🎓 Thesis-GATE v2.1：基於 Hyperledger Fabric 之區塊鏈學術論文審查與防偽系統
 
-**Thesis-GATE v2.0** 是第二代學術論文審查流程管理與防偽驗證系統。本版本從概念驗證（PoC）全面升級為基於 **Hyperledger Fabric 聯盟鏈、Fabric CA 數位憑證與 Node.js 全端架構** 的實戰級系統，將新產品開發（NPD）之「Stage-Gate 關卡審查機制」與密碼學雜湊防偽技術深度結合。
+**Thesis-GATE v2.1** 是第二代學術論文審查流程管理與防偽驗證系統。本版本從概念驗證（PoC）全面升級為基於 **Hyperledger Fabric 聯盟鏈、Fabric CA 數位憑證與 Node.js 全端架構** 的實戰級系統，將新產品開發（NPD）之「Stage-Gate 關卡審查機制」與密碼學雜湊防偽技術深度結合。
 
 ---
 
