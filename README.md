@@ -107,11 +107,15 @@ chmod +x start-all.sh
 
 ```text
 thesis-gate-api/
-├── public/
-│   └── index.html       # 雙欄式響應式前端介面 (RBAC 動態選單與四大流程面板)
-├── wallet/              # 本地 X.509 數位憑證錢包 (已加入 .gitignore，啟動時自動生成)
-├── app.js               # Express API 伺服器、gRPC 連線通道與 SHA-256 雜湊邏輯
-├── start-all.sh         # 一鍵自動化部署與啟動腳本 (支援 --reset 模式)
-├── package.json         # Node.js 專案相依套件設定
-└── README.md            # 專案技術文件與架構總結
+├── chaincode/                  # 🔗 智慧合約層
+│   ├── lib/
+│   │   └── assetTransfer.js    # 核心區塊鏈合約邏輯 (含 putState 與 SHA-256 雜湊)
+│   └── package.json            # 鏈碼相依設定
+├── public/                     # 💻 前端展示層
+│   └── index.html              # 雙欄式響應式前端介面 (RBAC 動態選單與四大流程面板)
+├── wallet/                     # 🔒 本地 X.509 數位憑證錢包 (已加入 .gitignore，啟動時自動生成)
+├── app.js                      # ⚙️ Express API 伺服器、gRPC 連線通道與 SHA-256 雜湊邏輯
+├── start-all.sh                # 🚀 一鍵自動化部署與啟動腳本 (支援 --reset 模式)
+├── package.json                # Node.js 專案相依套件設定
+└── README.md                   # 📄 專案技術文件與架構總結
 ```
